@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <script src="./d3.v5.min.js"></script>
+</head>
+<body>
+  <svg width="1200" height="600" id="main">
+    <g id="box">
+      <g id="lineBox"></g>
+      <g id="circleBox"></g>
+    </g>
+  </svg>
+</body>
+<script>
+  const svg = d3.select('#main');
+  const o = {
+    width: +svg.attr('width'),
+    height: +svg.attr('height'),
+  };
+  let g = d3.select('#box');
+  let lineBox=svg.select('#lineBox').attr('transform', `translate(${o.width/2}, ${o.height/2})`); // 线组
+  let circleBox=svg.select('#circleBox').attr('transform', `translate(${o.width/2}, ${o.height/2})`); // 圆组
+  let circles; // 所有的圆
+  let circleTexts; // 圆的文字
+  let lines;   // 所有的线
+  let simulation; // 力函数
+  const themeColor = [
+    {type: '#f5d523'},
+    {type: 'yellow'},
+    {type: 'green'},
+  ];
+
+  //节点集 圆的数据
+  let nodes = [
+    {name:"前端技术", id: 1, type: 1},
+    {name:"react", id: 2, type: '分支'},
+    {name:"vue", id: 3, type: '分支'},
+    {name:"jquery", id: 4, type: '分支'},
+  ];
+  //边集 线的数据
+  let edges = [
+    {source:0,target:1,relation:"", id: 20},
+    {source:0,target:2,relation:"", id: 30},
+    {source:0,target:3,relation:"", id: 40},
+  ];
+
+  renderSvg(nodes, edges);
+
+  // 开始执行
+  function renderSvg(ns, es) {
+    initSvg(ns, es);
+    initSimulation(ns, es);
+  };
+
+  // 初始化svg
+  function initSvg(nodes, edges) {
+    // 创建线容器
+  
+    // 画线
+    lines = lineBox
+      .selectAll('g')
+      .data(edges)
+      .enter()
+      .append('g')
+      .append('line')
+      .attr('stroke', 'black');
+
+    // 创建圆容器
+    circleGs = circleBox
+      .selectAll('g')
+      .data(nodes)
+      .enter()
+      .append('g')
+      .attr('class', 'circleGs');
+    
+    // 画圆
+    circles = circleGs
+      .append('circle')
+      .attr('r', 30)
+      .attr('fill', 'green');
+
+    // 画圆里面的文字
+    circleTexts = circleGs
+      .append('text')
+      .text(d=>d.name)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '12')
+      .attr('fill', 'white');
+
+    // 设置元素可拖动
+    circleGs.call(
+      d3.drag()//相当于移动端的拖拽手势  分以下三个阶段
+        .on('start',function(d) {
+          if(!d3.event.active) simulation.alphaTarget(5).restart();//设置衰减系数，对节点位置移动过程的模拟，数值越高移动越快，数值范围[0，1]
+          d.fx = d.x;
+          d.fy = d.y;
+        })
+        .on('drag', function(d) {
+          d.fx = d3.event.x;
+          d.fy = d3.event.y;
+        })
+        .on('end', function(d) {
+          if (!d3.event.active) simulation.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        })
+    );
+
+    // 设置元素可缩放和平移
+    svg.call(
+      d3.zoom()
+      .scaleExtent([0.1, 10]) // 设置缩放比例
+      .on("zoom", function () { 
+        g.attr('transform', d3.event.transform);
+      })
+    ).on('dblclick.zoom', null); // 双击移除事件
+
+    // 设置点击事件
+    circleGs.on('dblclick', circleGsClick);
+  };
+
+  // 创建力函数。
+  function initSimulation(nodes, edges) {
+    simulation = d3.forceSimulation(nodes) // 初始化nodes，添加x,y等属性
+      .force('manybody', d3.forceManyBody().strength(-100)) // 万有引力距离，正为吸引力，负为排斥力。
+      // .force('center', d3.forceCenter(width/2,height/2))   // 图谱位置，如果加上，拖动元素后放开鼠标会回到原点。
+      .force('link', d3.forceLink(edges) // 初始化edges，添加x,y等属性
+        .strength(0.1)
+        .distance(100)) // 线的距离
+      .velocityDecay(0.5) //摩擦力，震动
+      .alpha(0.7) //初始动画速度
+      .on('tick', function() { // 开始运行，数据更新后，ticked会把数据和图形绑定在力的上面
+        // 力函数创建好后，会自动把nodes和edges数据改变，并加上关联关系，然后更新视图。
+        if (edges.length) {
+          // 设置线的位置
+          lines
+            .attr('x1', d=>d.source.x)
+            .attr('y1', d=>d.source.y)
+            .attr('x2', d=>d.target.x)
+            .attr('y2', d=>d.target.y);
+        }
+
+        // 设置圆的位置
+        circleGs.attr('transform', function (d) {
+          // 将主题节点固定
+          // if (d.type === '主体') {
+          //   d.fx = d.x;
+          //   d.fy = d.y;
+          // } 
+          return `translate(${d.x},${d.y})`;
+        });
+      }); 
+  }
+
+  // 点击圆
+  function circleGsClick(d) {
+    let ns = [...nodes];
+    let es = [...edges];
+    if (ns.length>3) {
+      console.log('已加载全部元素!');
+      return;
+    }
+    [1,2,3].forEach(v => {
+      ns.push({
+        name: d.name+(v),
+        type: 2,
+      });
+      es.push({
+        source: d.index,
+        target: v,
+        relation: '',
+      });
+    });
+    nodes=ns;
+    edges=es;
+    // 更新前需要清除节点
+    svg.select('#circleBox').selectAll('*').remove();
+    svg.select('#lineBox').selectAll('*').remove();
+    renderSvg(ns, es);
+  };
+  
+</script>
+</html>
